@@ -6,7 +6,7 @@ import (
 	"time"
 
 	veleroCR "github.com/openshift/managed-velero-operator/pkg/apis/managed/v1alpha1"
-	"github.com/openshift/managed-velero-operator/pkg/s3"
+	"github.com/openshift/managed-velero-operator/pkg/gcs"
 	"github.com/openshift/managed-velero-operator/pkg/util/platform"
 
 	velerov1 "github.com/heptio/velero/pkg/apis/velero/v1"
@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	log               = logf.Log.WithName("controller_velero")
-	s3ReconcilePeriod = 60 * time.Minute
+	log                    = logf.Log.WithName("controller_velero")
+	storageReconcilePeriod = 60 * time.Minute
 )
 
 // Add creates a new Velero Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -136,22 +136,17 @@ func (r *ReconcileVelero) Reconcile(request reconcile.Request) (reconcile.Result
 		return reconcile.Result{}, err
 	}
 
-	// Verify that we have received an AWS region from the platform
-	if platformStatus.AWS == nil || len(platformStatus.AWS.Region) < 1 {
-		return reconcile.Result{}, fmt.Errorf("unable to determine AWS region")
-	}
-
-	// Create an S3 client based on the region we received
-	s3Client, err := s3.NewS3Client(r.client, platformStatus.AWS.Region)
+	// Create an GCS client based on the region we received
+	gcsClient, err := gcs.NewGCSClient(r.client)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	// Check if bucket needs to be reconciled
-	if instance.S3BucketReconcileRequired(s3ReconcilePeriod) {
+	if instance.StorageBucketReconcileRequired(storageReconcilePeriod) {
 		// Always directly return from this, as we will either update the
 		// timestamp when complete, or return an error.
-		return r.provisionS3(reqLogger, s3Client, instance)
+		return r.provisionStorage(reqLogger, gcsClient, platformStatus, instance)
 	}
 
 	// Now go provision Velero

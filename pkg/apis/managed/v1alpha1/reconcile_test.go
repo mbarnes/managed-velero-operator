@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestS3BucketReconcileRequired(t *testing.T) {
+func TestStorageBucketReconcileRequired(t *testing.T) {
 	var testcases = []struct {
 		testName          string
 		bucketName        string
@@ -74,7 +74,7 @@ func TestS3BucketReconcileRequired(t *testing.T) {
 			instance.Status.S3Bucket.LastSyncTimestamp = &metav1.Time{Time: tc.timestamp}
 		}
 
-		reconcile := instance.S3BucketReconcileRequired(tc.reconcilePeriod)
+		reconcile := instance.StorageBucketReconcileRequired(tc.reconcilePeriod)
 
 		if reconcile != tc.shouldReconcile {
 			if tc.shouldReconcile {

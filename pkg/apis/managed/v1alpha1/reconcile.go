@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-func (i *Velero) S3BucketReconcileRequired(reconcilePeriod time.Duration) bool {
+func (i *Velero) StorageBucketReconcileRequired(reconcilePeriod time.Duration) bool {
 	// If any of the following are true, reconcile the S3 bucket:
 	// - Name is empty
 	// - Provisioned is false

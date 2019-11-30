@@ -14,8 +14,12 @@ require (
 )
 
 require (
+	cloud.google.com/go v0.49.0 // indirect
+	cloud.google.com/go/storage v1.4.0
 	github.com/operator-framework/operator-sdk v0.12.0
 	github.com/spf13/pflag v1.0.3
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	google.golang.org/api v0.14.0
 	k8s.io/api v0.0.0
 	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.0.0

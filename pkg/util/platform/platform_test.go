@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	configv1 "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	infraObjBase = configv1.Infrastructure{
+	infraObjBase = configapiv1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster",
 		},
-		Spec: configv1.InfrastructureSpec{},
-		Status: configv1.InfrastructureStatus{
+		Spec: configapiv1.InfrastructureSpec{},
+		Status: configapiv1.InfrastructureStatus{
 			InfrastructureName:   "test-cluster",
 			EtcdDiscoveryDomain:  "test-cluster.example.com",
 			APIServerURL:         "https://api.test-cluster.example.com:6443",
@@ -63,7 +63,7 @@ func TestGetPlatformStatus(t *testing.T) {
 		},
 	}
 	scheme := runtime.NewScheme()
-	if err = configv1.Install(scheme); err != nil {
+	if err = configapiv1.Install(scheme); err != nil {
 		t.Fatalf("unable to create schema: %v", err)
 	}
 	if err = corev1.AddToScheme(scheme); err != nil {
@@ -84,16 +84,16 @@ func TestGetPlatformStatus(t *testing.T) {
 		// create infrastructure object
 		infraObj := infraObjBase
 		if tc.useInfraObject == true {
-			infraObj.Status.PlatformStatus = &configv1.PlatformStatus{
-				Type: configv1.PlatformType(tc.platform),
-				AWS: &configv1.AWSPlatformStatus{
+			infraObj.Status.PlatformStatus = &configapiv1.PlatformStatus{
+				Type: configapiv1.PlatformType(tc.platform),
+				AWS: &configapiv1.AWSPlatformStatus{
 					Region: tc.region,
 				},
 			}
 		} else {
 			//lint:ignore SA1019 ignore deprecation, as this function is specifically designed for backwards compatibility
 			//nolint:staticcheck // ref https://github.com/golangci/golangci-lint/issues/741
-			infraObj.Status.Platform = configv1.PlatformType(tc.platform)
+			infraObj.Status.Platform = configapiv1.PlatformType(tc.platform)
 		}
 		err = fc.Create(context.TODO(), &infraObj)
 		if err != nil {

@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	configv1 "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -36,7 +36,7 @@ func GetPlatformStatusClient() (client.Client, error) {
 	}
 
 	// Add OpenShift config apis to scheme
-	if err := configv1.Install(scheme); err != nil {
+	if err := configapiv1.Install(scheme); err != nil {
 		return nil, err
 	}
 
@@ -53,11 +53,11 @@ func GetPlatformStatusClient() (client.Client, error) {
 // status. AWS is the special case. 4.1 clusters on AWS expose the region config
 // only through install-config. New AWS clusters and all other 4.2+ platforms
 // are configured via platform status.
-func GetPlatformStatus(client client.Client) (*configv1.PlatformStatus, error) {
+func GetPlatformStatus(client client.Client) (*configapiv1.PlatformStatus, error) {
 	var err error
 
 	// Retrieve the cluster infrastructure config.
-	infra := &configv1.Infrastructure{}
+	infra := &configapiv1.Infrastructure{}
 	err = client.Get(context.TODO(), types.NamespacedName{Name: "cluster"}, infra)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func GetPlatformStatus(client client.Client) (*configv1.PlatformStatus, error) {
 
 	if status := infra.Status.PlatformStatus; status != nil {
 		// Only AWS needs backwards compatibility with install-config
-		if status.Type != configv1.AWSPlatformType {
+		if status.Type != configapiv1.AWSPlatformType {
 			return status, nil
 		}
 
@@ -89,11 +89,11 @@ func GetPlatformStatus(client client.Client) (*configv1.PlatformStatus, error) {
 	if err := yaml.Unmarshal([]byte(data), &ic); err != nil {
 		return nil, fmt.Errorf("invalid install-config: %v\njson:\n%s", err, data)
 	}
-	return &configv1.PlatformStatus{
+	return &configapiv1.PlatformStatus{
 		//lint:ignore SA1019 ignore deprecation, as this function is specifically designed for backwards compatibility
 		//nolint:staticcheck // ref https://github.com/golangci/golangci-lint/issues/741
 		Type: infra.Status.Platform,
-		AWS: &configv1.AWSPlatformStatus{
+		AWS: &configapiv1.AWSPlatformStatus{
 			Region: ic.Platform.AWS.Region,
 		},
 	}, nil
@@ -101,7 +101,7 @@ func GetPlatformStatus(client client.Client) (*configv1.PlatformStatus, error) {
 
 // IsPlatformSupported checks if specified platform is in a slice of supported
 // platforms
-func IsPlatformSupported(platform configv1.PlatformType, supportedPlatforms []configv1.PlatformType) bool {
+func IsPlatformSupported(platform configapiv1.PlatformType, supportedPlatforms []configapiv1.PlatformType) bool {
 	for _, p := range supportedPlatforms {
 		if p == platform {
 			return true

@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	velerov1 "github.com/heptio/velero/pkg/apis/velero/v1"
-	configv1 "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	minterv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
@@ -51,7 +51,7 @@ var log = logf.Log.WithName(version.OperatorName)
 const ManagedVeleroOperatorNamespace = "openshift-velero"
 
 // supportedPlatforms is the list of platform supported by the operator
-var supportedPlatforms = []configv1.PlatformType{configv1.AWSPlatformType}
+var supportedPlatforms = []configapiv1.PlatformType{configapiv1.GCPPlatformType}
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Operator Version: %s", version.Version))
@@ -137,7 +137,7 @@ func main() {
 	}
 
 	// Add OpenShift config apis to scheme
-	if err := configv1.Install(mgr.GetScheme()); err != nil {
+	if err := configapiv1.Install(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}

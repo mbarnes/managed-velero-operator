@@ -2,7 +2,6 @@ package velero
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -16,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
-	configv1 "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -25,18 +24,15 @@ import (
 )
 
 const (
-	awsCredsSecretIDKey          = "aws_access_key_id"     // #nosec G101
-	awsCredsSecretAccessKey      = "aws_secret_access_key" // #nosec G101
 	credentialsRequestName       = "velero-iam-credentials"
 	veleroImage                  = "gcr.io/heptio-images/velero:v1.1.0"
 	defaultBackupStorageLocation = "default"
 )
 
-func (r *ReconcileVelero) provisionVelero(reqLogger logr.Logger, namespace string, platformStatus *configv1.PlatformStatus, instance *veleroCR.Velero) (reconcile.Result, error) {
+func (r *ReconcileVelero) provisionVelero(reqLogger logr.Logger, namespace string, platformStatus *configapiv1.PlatformStatus, instance *veleroCR.Velero) (reconcile.Result, error) {
 	var err error
 
 	locationConfig := make(map[string]string)
-	locationConfig["region"] = platformStatus.AWS.Region
 
 	// Install BackupStorageLocation
 	foundBsl := &velerov1.BackupStorageLocation{}
@@ -156,42 +152,16 @@ func (r *ReconcileVelero) provisionVelero(reqLogger logr.Logger, namespace strin
 func credentialsRequest(namespace, name, bucketName string) *minterv1.CredentialsRequest {
 	codec, _ := minterv1.NewCodec()
 	awsProvSpec, _ := codec.EncodeProviderSpec(
-		&minterv1.AWSProviderSpec{
+		&minterv1.GCPProviderSpec{
 			TypeMeta: metav1.TypeMeta{
-				Kind: "AWSProviderSpec",
+				Kind: "GCPProviderSpec",
 			},
-			StatementEntries: []minterv1.StatementEntry{
-				{
-					Effect: "Allow",
-					Action: []string{
-						"ec2:DescribeVolumes",
-						"ec2:DescribeSnapshots",
-						"ec2:CreateTags",
-						"ec2:CreateVolume",
-						"ec2:CreateSnapshot",
-						"ec2:DeleteSnapshot",
-					},
-					Resource: "*",
-				},
-				{
-					Effect: "Allow",
-					Action: []string{
-						"s3:GetObject",
-						"s3:DeleteObject",
-						"s3:PutObject",
-						"s3:AbortMultipartUpload",
-						"s3:ListMultipartUploadParts",
-					},
-					Resource: fmt.Sprintf("arn:aws:s3:::%s/*", bucketName),
-				},
-				{
-					Effect: "Allow",
-					Action: []string{
-						"s3:ListBucket",
-					},
-					Resource: fmt.Sprintf("arn:aws:s3:::%s", bucketName),
-				},
+			PredefinedRoles: []string{
+				"roles/compute.storageAdmin",
+				"roles/iam.serviceAccountUser",
+				"roles/cloudmigration.storageaccess",
 			},
+			SkipServiceCheck: true,
 		})
 
 	return &minterv1.CredentialsRequest{
@@ -215,8 +185,6 @@ func credentialsRequest(namespace, name, bucketName string) *minterv1.Credential
 
 func veleroDeployment(namespace string) *appsv1.Deployment {
 	deployment := veleroInstall.Deployment(namespace,
-		veleroInstall.WithEnvFromSecretKey(strings.ToUpper(awsCredsSecretIDKey), credentialsRequestName, awsCredsSecretIDKey),
-		veleroInstall.WithEnvFromSecretKey(strings.ToUpper(awsCredsSecretAccessKey), credentialsRequestName, awsCredsSecretAccessKey),
 		veleroInstall.WithImage(veleroImage),
 	)
 
@@ -226,6 +194,7 @@ func veleroDeployment(namespace string) *appsv1.Deployment {
 	progressDeadlineSeconds := int32(600)
 	maxUnavailable := intstr.FromString("25%")
 	maxSurge := intstr.FromString("25%")
+	defaultMode := int32(420)
 	deployment.Spec.Replicas = &replicas
 	deployment.Spec.RevisionHistoryLimit = &revisionHistoryLimit
 	deployment.Spec.ProgressDeadlineSeconds = &progressDeadlineSeconds
@@ -233,6 +202,33 @@ func veleroDeployment(namespace string) *appsv1.Deployment {
 	deployment.Spec.Template.Spec.Containers[0].Ports[0].Protocol = "TCP"
 	deployment.Spec.Template.Spec.Containers[0].TerminationMessagePath = "/dev/termination-log"
 	deployment.Spec.Template.Spec.Containers[0].TerminationMessagePolicy = "File"
+	deployment.Spec.Template.Spec.Volumes = append(
+		deployment.Spec.Template.Spec.Volumes,
+		corev1.Volume{
+			Name: "cloud-credentials",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: credentialsRequestName,
+					DefaultMode: &defaultMode,
+				},
+			},
+		},
+	)
+
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+		corev1.VolumeMount{
+			Name:      "cloud-credentials",
+			MountPath: "/credentials",
+		},
+	)
+
+	deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, []corev1.EnvVar{
+		{
+			Name:  "GOOGLE_APPLICATION_CREDENTIALS",
+			Value: "/credentials/service_account.json",
+		},
+	}...)
 	deployment.Spec.Template.Spec.DeprecatedServiceAccount = "velero"
 	deployment.Spec.Template.Spec.DNSPolicy = "ClusterFirst"
 	deployment.Spec.Template.Spec.SchedulerName = "default-scheduler"
